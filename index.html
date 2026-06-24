@@ -4,7 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WorkPulse HR — Enterprise Cloud System</title>
-<!-- Global Firebase Legacy Compat SDK Core Scripts -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -223,8 +222,8 @@
   </div>
 </div>
 
-<div id="auth-view" style="display: none;">
-  <div id="screen-login" class="auth-container">
+<div id="auth-view" style="display: block;">
+  <div id="screen-login" class="auth-container" style="display: flex;">
     <div class="auth-card">
       <div class="auth-logo">Work<span>Pulse</span></div>
       <div class="auth-subtitle">Enterprise dynamic database cloud synchronization</div>
@@ -237,11 +236,11 @@
         <input type="password" id="login-pass" placeholder="••••••••" />
       </div>
       <button class="btn btn-primary" onclick="handleLogin()">Sign In Workspace</button>
-      <div class="auth-switch">Need access parameters? <a onclick="toggleAuthScreen('signup')">Create registry profile</a></div>
+      <div class="auth-switch">Need access parameters? <a id="link-goto-signup" style="color:var(--accent); font-weight:600; cursor:pointer;">Create registry profile</a></div>
     </div>
   </div>
 
-  <div id="screen-signup" class="auth-container" style="display:none;">
+  <div id="screen-signup" class="auth-container" style="display: none;">
     <div class="auth-card">
       <div class="auth-logo">Work<span>Pulse</span></div>
       <div class="auth-subtitle">Establish Dynamic Cloud Account</div>
@@ -258,7 +257,7 @@
         </select>
       </div>
       <button class="btn btn-primary" onclick="handleSignup()">Register Framework Account</button>
-      <div class="auth-switch">Already managed inside workspace? <a onclick="toggleAuthScreen('login')">Authenticate here</a></div>
+      <div class="auth-switch">Already managed inside workspace? <a id="link-goto-login" style="color:var(--accent); font-weight:600; cursor:pointer;">Authenticate here</a></div>
     </div>
   </div>
 </div>
@@ -476,6 +475,24 @@
 <div id="toast"></div>
 
 <script>
+  function toggleAuthScreen(screen) {
+    const loginScreen = document.getElementById('screen-login');
+    const signupScreen = document.getElementById('screen-signup');
+    if (loginScreen && signupScreen) {
+      loginScreen.style.display = screen === 'login' ? 'flex' : 'none';
+      signupScreen.style.display = screen === 'signup' ? 'flex' : 'none';
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
+    const gotoSignup = document.getElementById('link-goto-signup');
+    const gotoLogin = document.getElementById('link-goto-login');
+    if (gotoSignup) gotoSignup.addEventListener('click', function() { toggleAuthScreen('signup'); });
+    if (gotoLogin) gotoLogin.addEventListener('click', function() { toggleAuthScreen('login'); });
+  });
+</script>
+
+<script>
 // ============================================================
 // LIVE REVERSE-GEO LOOKUP OFFICE REGISTRY
 // ============================================================
@@ -498,7 +515,7 @@ function translateCoordinatesToPlace(lat, lng) {
 }
 
 // ============================================================
-// FIREBASE LIVE INTEGRATION
+// FIREBASE CONFIGURATION Matrix
 // ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyB0EblfnS8aiDXpjIIGWQog0jrqRCooZGI",
@@ -565,7 +582,7 @@ auth.onAuthStateChanged(async user => {
 });
 
 // ============================================================
-// NAVIGATION HUB
+// APP FRAMEWORK CONTENT ROUTER
 // ============================================================
 function nav(page) {
   const prof = getProfile();
@@ -587,7 +604,7 @@ function nav(page) {
 }
 
 // ============================================================
-// AUTH HANDLERS
+// SECURE CLOUD AUTHENTICATION VECTORS
 // ============================================================
 async function handleLogin() {
   const email = document.getElementById('login-email').value.trim();
@@ -624,11 +641,8 @@ async function handleSignup() {
 
   try {
     const creds = await auth.createUserWithEmailAndPassword(email, pass);
-    
-    // Fixed: Group nested cloud keys inside a single unified profile object path
     await db.ref('users/' + creds.user.uid).set({ name, empId, email, role });
     await db.ref('employees/' + creds.user.uid).set({ id: empId, name, dept: 'Corporate Core', position: role === 'admin' ? 'HR Director' : role === 'manager' ? 'Department Head' : 'Staff Member' });
-    
     toast('✅ Registration completed successfully.', 'success');
   } catch (err) {
     toast('❌ Process error: ' + err.message, 'error');
@@ -638,7 +652,7 @@ async function handleSignup() {
 function handleLogout() { clearInterval(sessionInterval); clockInTime = null; auth.signOut(); }
 
 // ============================================================
-// TIMEFRAME CLOCK GEOFENCE CONTROL ENGINE
+// TIMEFRAME CLOCK TRACK CONTROL ENGINE
 // ============================================================
 let clockInterval, sessionInterval, clockInTime, clockInLoc;
 
@@ -721,7 +735,7 @@ async function clockOut() {
 function fmtDuration(secs) { return `${Math.floor(secs/3600)}h ${pad(Math.floor((secs%3600)/60))}m`; }
 
 // ============================================================
-// SIGNATURE PAD CANVAS
+// LEAVE DOCUMENT SIGNATURE TRACKING
 // ============================================================
 let canvas, ctx, drawing = false;
 
@@ -759,7 +773,7 @@ function clearSignaturePad(event) {
 }
 
 // ============================================================
-// DATA VIEW RENDERING CONTROLLERS
+// VISUAL RENDERING REPOSITORIES
 // ============================================================
 function renderDashboard() {
   const prof = getProfile();
@@ -854,7 +868,7 @@ function submitLeave() {
 }
 
 // ============================================================
-// ADMIN CHANNELS
+// ADMIN EXECUTIONS OVERLAY PANELS
 // ============================================================
 function renderEmployees() {
   document.getElementById('employees-table').innerHTML = globalState.employees.map(e => `<tr><td><strong>${e.name}</strong></td><td><code>${e.id}</code></td><td>${e.dept}</td><td>${e.position}</td><td><button class="btn btn-ghost btn-sm" onclick="removeEmployee('${e.id}')">Delete</button></td></tr>`).join('');
@@ -865,7 +879,6 @@ function addEmployee() {
   const name = document.getElementById('emp-name').value.trim(); const id = document.getElementById('emp-id').value.trim();
   if(!name || !id) return toast('⚠️ Descriptors missing.', 'error');
   
-  // Save custom added entries under employees tree mapping directly
   const randomPushKey = db.ref('employees').push().key;
   db.ref('employees/' + randomPushKey).set({ id: id, name: name, dept: document.getElementById('emp-dept').value, position: document.getElementById('emp-position').value.trim() });
   
@@ -897,7 +910,6 @@ function filterAdminLeaves(filter, el) {
   el.classList.add('active'); renderAdminLeaves(filter);
 }
 
-// Adjusted leave modal context reference targeting correct identifier properties maps
 function openLeaveAction(id) {
   currentLeaveId = id; const leave = globalState.leaves.find(l => l.id === id);
   document.getElementById('modal-action-body').innerHTML = `<p><strong>Applicant:</strong> ${leave.empName}<br><strong>Days Weight:</strong> ${leave.days} units</p>
@@ -922,7 +934,7 @@ function renderReports() {
 }
 
 // ============================================================
-// SYSTEM UTILITIES
+// INFRASTRUCTURE EXPORTS UTILS
 // ============================================================
 function triggerMockNotification() { toast("🔔 System Reminder: Standard compliance verification audit active.", "success"); }
 
