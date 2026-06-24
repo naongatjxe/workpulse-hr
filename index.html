@@ -4,7 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WorkPulse HR — Enterprise Cloud System</title>
-<!-- Global Firebase Legacy Compat SDK Core Scripts -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -224,7 +223,6 @@
 </div>
 
 <div id="auth-view" style="display: block;">
-  <!-- Authentication Login View -->
   <div id="screen-login" class="auth-container" style="display: flex;">
     <div class="auth-card">
       <div class="auth-logo">Work<span>Pulse</span></div>
@@ -242,7 +240,6 @@
     </div>
   </div>
 
-  <!-- Organizational Onboarding Signup View -->
   <div id="screen-signup" class="auth-container" style="display: none;">
     <div class="auth-card">
       <div class="auth-logo">Work<span>Pulse</span></div>
@@ -477,7 +474,6 @@
 
 <div id="toast"></div>
 
-<!-- ISOLATED INTERFACE ROUTING ENGINE SCRIPT (Safeguards View Buttons) -->
 <script>
   function toggleAuthScreen(screen) {
     const loginScreen = document.getElementById('screen-login');
@@ -496,14 +492,14 @@
   });
 </script>
 
-<!-- BACKEND HARDWARE LAYER INTEGRATION SCRIPT -->
 <script>
 // ============================================================
-// LIVE REVERSE-GEO LOOKUP OFFICE REGISTRY
+// LIVE REVERSE-GEO LOOKUP OFFICE REGISTRY WITH OPENSTREETMAP INTERFACE
 // ============================================================
-function translateCoordinatesToPlace(lat, lng) {
+async function translateCoordinatesToPlace(lat, lng) {
   if (!lat || !lng) return "Office Network Hub";
   
+  // Custom smart dictionary fallback coordinates mapping
   const locationsDatabase = [
     { name: "Lusaka HQ Branch Office", lat: -15.4167, lng: 28.2833 },
     { name: "Kitwe Regional Hub", lat: -12.8167, lng: 28.2000 },
@@ -511,12 +507,29 @@ function translateCoordinatesToPlace(lat, lng) {
     { name: "Livingstone Base Station", lat: -17.8500, lng: 25.8500 }
   ];
 
-  const matchedPlace = locationsDatabase.find(loc => {
+  const staticMatch = locationsDatabase.find(loc => {
     const distanceThreshold = Math.sqrt(Math.pow(lat - loc.lat, 2) + Math.pow(lng - loc.lng, 2));
-    return distanceThreshold < 0.05; 
+    return distanceThreshold < 0.02; 
   });
+  if (staticMatch) return staticMatch.name;
 
-  return matchedPlace ? matchedPlace.name : `Remote Space (${lat.toFixed(3)}, ${lng.toFixed(3)})`;
+  try {
+    // Dynamic integration with OpenStreetMap's Nominatim Reverse Geocoding API
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+      headers: { 'Accept-Language': 'en' }
+    });
+    const data = await response.json();
+    if (data && data.display_name) {
+      // Return clear, human-readable structural place components
+      const address = data.address;
+      const primaryDetail = address.road || address.suburb || address.neighbourhood || "";
+      const cityDetail = address.city || address.town || address.county || "";
+      return primaryDetail && cityDetail ? `${primaryDetail}, ${cityDetail}` : data.display_name.split(',').slice(0, 2).join(',');
+    }
+  } catch (error) {
+    console.error("OSM API Geocode lookup bypass: ", error);
+  }
+  return `Area Space (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
 }
 
 // ============================================================
@@ -621,13 +634,14 @@ async function handleLogin() {
     const loc = await getLocation();
     const profileSnapshot = await db.ref('users/' + userCredential.user.uid).once('value');
     const pData = profileSnapshot.val();
+    const readablePlaceName = await translateCoordinatesToPlace(loc.lat, loc.lng);
     
     db.ref('logins').push({
       timestamp: new Date().toLocaleString('en-GB'),
       name: pData?.name || email.split('@')[0], 
       id: pData?.empId || userCredential.user.uid.substring(0, 7).toUpperCase(),
       role: pData?.role || 'employee',
-      location: translateCoordinatesToPlace(loc.lat, loc.lng)
+      location: readablePlaceName
     });
     toast('⚡ Session authorized safely.', 'success');
   } catch (err) {
@@ -692,7 +706,7 @@ function getLocation() {
     const safetyTimeout = setTimeout(() => {
       if (!hasResolved) {
         hasResolved = true;
-        res({ lat: -15.4167, lng: 28.2833, label: "Lusaka HQ Branch Office (Fallback)" });
+        res({ lat: -15.4167, lng: 28.2833, label: "Lusaka HQ" });
       }
     }, 2000);
 
@@ -708,7 +722,7 @@ function getLocation() {
         if (!hasResolved) {
           hasResolved = true;
           clearTimeout(safetyTimeout);
-          res({ lat: -15.4167, lng: 28.2833, label: 'Lusaka HQ Branch Office' });
+          res({ lat: -15.4167, lng: 28.2833, label: 'Lusaka HQ' });
         }
       }, { timeout: 1800, enableHighAccuracy: false }
     );
@@ -730,7 +744,7 @@ async function clockIn() {
   }
 
   clockInLoc = loc; clockInTime = Date.now();
-  const readablePlaceName = translateCoordinatesToPlace(loc.lat, loc.lng);
+  const readablePlaceName = await translateCoordinatesToPlace(loc.lat, loc.lng);
   document.getElementById('location-text').textContent = `Verified Range: ${readablePlaceName}`;
   document.getElementById('clock-status').className = 'clock-status in';
   document.getElementById('clock-status').innerHTML = '<div class="dot"></div> Shift State: Authenticated Geofence Verified';
@@ -745,6 +759,8 @@ async function clockOut() {
   const loc = await getLocation();
   const prof = getProfile();
   const duration = Math.floor((Date.now() - clockInTime) / 1000);
+  const clockInPlace = await translateCoordinatesToPlace(clockInLoc?.lat, clockInLoc?.lng);
+  const clockOutPlace = await translateCoordinatesToPlace(loc.lat, loc.lng);
 
   if (prof) {
     db.ref('attendance').push({
@@ -752,9 +768,9 @@ async function clockOut() {
       empName: prof.name || 'Staff User',
       date: new Date().toISOString().split('T')[0],
       clockIn: new Date(clockInTime).toLocaleTimeString('en-GB'), 
-      clockInLoc: translateCoordinatesToPlace(clockInLoc?.lat, clockInLoc?.lng),
+      clockInLoc: clockInPlace,
       clockOut: new Date().toLocaleTimeString('en-GB'), 
-      clockOutLoc: translateCoordinatesToPlace(loc.lat, loc.lng),
+      clockOutLoc: clockOutPlace,
       duration: duration
     });
   }
@@ -768,10 +784,8 @@ async function clockOut() {
   renderTodayTimeline();
 }
 
-function fmtDuration(secs) { return `${Math.floor(secs/3600)}h ${pad(Math.floor((secs%3600)/60))}m`; }
-
 // ============================================================
-// SIGNATURE PAD CANVAS
+// SIGNATURE CANVAS
 // ============================================================
 let canvas, ctx, drawing = false;
 
@@ -835,10 +849,10 @@ function renderDashboard() {
     
     freqContainer.innerHTML = activeTodayLogs.map(a => `
       <div class="frequency-item">
-        <div class="frequency-name">👤 Staff Name: ${a.empName}</div>
+        <div class="frequency-name">👤 Staff Member: ${a.empName}</div>
         <div class="frequency-meta">
-          <span>🕒 Shift Frame: <strong>${a.clockIn} ➔ ${a.clockOut || 'Active Session'}</strong></span>
-          <span>🏢 Branch: <strong>${a.clockInLoc}</strong></span>
+          <span>🕒 Shift: <strong>${a.clockIn} ➔ ${a.clockOut || 'Active Now'}</strong></span>
+          <span>🏢 Location: <strong>${a.clockInLoc}</strong></span>
         </div>
       </div>
     `).join('') || `<div class="empty" style="padding:12px;">No workforce sync activity logged today yet.</div>`;
@@ -857,7 +871,6 @@ function renderTodayTimeline() {
   document.getElementById('today-timeline').innerHTML = html || `<div class="empty"><div class="empty-icon">🕐</div><div class="empty-title">Clear log for active date.</div></div>`;
 }
 
-// Fixed minor syntax error Pap token string inside image path parameter maps
 function renderAttendance() {
   const prof = getProfile();
   if (!prof) return;
@@ -909,7 +922,7 @@ function submitLeave() {
 // ============================================================
 function renderEmployees() {
   document.getElementById('employees-table').innerHTML = globalState.employees.map(e => `<tr><td><strong>${e.name}</strong></td><td><code>${e.id}</code></td><td>${e.dept}</td><td>${e.position}</td><td><button class="btn btn-ghost btn-sm" onclick="removeEmployee('${e.id}')">Delete</button></td></tr>`).join('');
-  document.getElementById('admin-logins-table').innerHTML = globalState.logins.slice(-6).reverse().map(l => `<tr><td>${l.timestamp}</td><td><strong>${l.name}</strong></td><td>${l.id}</td><td><span class="badge badge-purple">${l.role ? l.role.toUpperCase() : 'USER'}</span></td><td>🏢 Registered Branch: <span style="color:var(--text);font-weight:600;">${l.location}</span></td></tr>`).join('');
+  document.getElementById('admin-logins-table').innerHTML = globalState.logins.slice(-6).reverse().map(l => `<tr><td>${l.timestamp}</td><td><strong>${l.name}</strong></td><td>${l.id}</td><td><span class="badge badge-purple">${l.role ? l.role.toUpperCase() : 'USER'}</span></td><td>🏢 Place: <span style="color:var(--text);font-weight:600;">${l.location}</span></td></tr>`).join('');
 }
 
 function addEmployee() {
@@ -942,11 +955,6 @@ function renderAdminLeaves(filter) {
   `).join('');
 }
 
-function filterAdminLeaves(filter, el) {
-  document.querySelectorAll('#leave-admin-tabs .tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active'); renderAdminLeaves(filter);
-}
-
 function openLeaveAction(id) {
   currentLeaveId = id; const leave = globalState.leaves.find(l => l.id === id);
   document.getElementById('modal-action-body').innerHTML = `<p><strong>Applicant:</strong> ${leave.empName}<br><strong>Days Weight:</strong> ${leave.days} units</p>
@@ -971,7 +979,7 @@ function renderReports() {
 }
 
 // ============================================================
-// SYSTEM UTILITIES
+// INFRASTRUCTURE EXPORTS UTILS
 // ============================================================
 function triggerMockNotification() { toast("🔔 System Reminder: Standard compliance verification audit active.", "success"); }
 
