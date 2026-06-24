@@ -499,7 +499,6 @@
 async function translateCoordinatesToPlace(lat, lng) {
   if (!lat || !lng) return "Office Network Hub";
   
-  // Custom smart dictionary fallback coordinates mapping
   const locationsDatabase = [
     { name: "Lusaka HQ Branch Office", lat: -15.4167, lng: 28.2833 },
     { name: "Kitwe Regional Hub", lat: -12.8167, lng: 28.2000 },
@@ -514,17 +513,26 @@ async function translateCoordinatesToPlace(lat, lng) {
   if (staticMatch) return staticMatch.name;
 
   try {
-    // Dynamic integration with OpenStreetMap's Nominatim Reverse Geocoding API
+    // Upgraded: Appends required User-Agent headers to eliminate rate limit drops on devices
     const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
-      headers: { 'Accept-Language': 'en' }
+      headers: { 
+        'Accept-Language': 'en',
+        'User-Agent': 'WorkPulseHREnterpriseApplication/1.0'
+      }
     });
     const data = await response.json();
-    if (data && data.display_name) {
-      // Return clear, human-readable structural place components
+    if (data && data.address) {
       const address = data.address;
-      const primaryDetail = address.road || address.suburb || address.neighbourhood || "";
-      const cityDetail = address.city || address.town || address.county || "";
-      return primaryDetail && cityDetail ? `${primaryDetail}, ${cityDetail}` : data.display_name.split(',').slice(0, 2).join(',');
+      
+      // Explicitly pull out specific landmark nodes (hospitals, clinics, named buildings)
+      const landmarkDetail = address.hospital || address.clinic || address.amenity || address.building || address.industrial || address.tourism || address.shop;
+      const roadDetail = address.road || address.suburb || address.neighbourhood || "";
+      const cityDetail = address.city || address.town || address.village || "";
+      
+      if (landmarkDetail) {
+        return cityDetail ? `${landmarkDetail}, ${cityDetail}` : landmarkDetail;
+      }
+      return roadDetail && cityDetail ? `${roadDetail}, ${cityDetail}` : data.display_name.split(',').slice(0, 2).join(',');
     }
   } catch (error) {
     console.error("OSM API Geocode lookup bypass: ", error);
@@ -785,7 +793,7 @@ async function clockOut() {
 }
 
 // ============================================================
-// SIGNATURE CANVAS
+// SIGNATURE PAD CANVAS
 // ============================================================
 let canvas, ctx, drawing = false;
 
@@ -953,6 +961,11 @@ function renderAdminLeaves(filter) {
     <tr><td><strong>${l.empName}</strong></td><td>${l.type}</td><td>${l.startDate}</td><td>${l.endDate}</td><td>${l.days}</td><td>${l.priority}</td><td><small>${l.attachment||'None'}</small></td><td>${statusBadge(l.status)}</td>
     <td>${l.status==='Pending'?`<button class="btn btn-ghost btn-sm" onclick="openLeaveAction(${l.id})">Evaluate</button>`:l.comment||'Closed'}</td></tr>
   `).join('');
+}
+
+function filterAdminLeaves(filter, el) {
+  document.querySelectorAll('#leave-admin-tabs .tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active'); renderAdminLeaves(filter);
 }
 
 function openLeaveAction(id) {
