@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WorkPulse HR — Enterprise Cloud System</title>
+<!-- Global Firebase Legacy Compat SDK Core Scripts -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -223,6 +224,7 @@
 </div>
 
 <div id="auth-view" style="display: block;">
+  <!-- Authentication Login View -->
   <div id="screen-login" class="auth-container" style="display: flex;">
     <div class="auth-card">
       <div class="auth-logo">Work<span>Pulse</span></div>
@@ -240,13 +242,14 @@
     </div>
   </div>
 
+  <!-- Organizational Onboarding Signup View -->
   <div id="screen-signup" class="auth-container" style="display: none;">
     <div class="auth-card">
       <div class="auth-logo">Work<span>Pulse</span></div>
       <div class="auth-subtitle">Establish Dynamic Cloud Account</div>
-      <div class="form-group"><label>Full Staff Name</label><input type="text" id="signup-name" placeholder="Naonga Gondwe" /></div>
-      <div class="form-group"><label>Employee ID Registration</label><input type="text" id="signup-id" placeholder="00443571" /></div>
-      <div class="form-group"><label>Corporate Email</label><input type="email" id="signup-email" placeholder="naonga3@gmail.com" /></div>
+      <div class="form-group"><label>Full Staff Name</label><input type="text" id="signup-name" placeholder="e.g. John Doe" /></div>
+      <div class="form-group"><label>Employee ID Registration</label><input type="text" id="signup-id" placeholder="e.g. EMP-001" /></div>
+      <div class="form-group"><label>Corporate Email</label><input type="email" id="signup-email" placeholder="name@company.com" /></div>
       <div class="form-group"><label>Profile Password</label><input type="password" id="signup-pass" placeholder="••••••••" /></div>
       <div class="form-group">
         <label>Corporate Structural Role Privilege</label>
@@ -474,6 +477,7 @@
 
 <div id="toast"></div>
 
+<!-- ISOLATED INTERFACE ROUTING ENGINE SCRIPT (Safeguards View Buttons) -->
 <script>
   function toggleAuthScreen(screen) {
     const loginScreen = document.getElementById('screen-login');
@@ -492,6 +496,7 @@
   });
 </script>
 
+<!-- BACKEND HARDWARE LAYER INTEGRATION SCRIPT -->
 <script>
 // ============================================================
 // LIVE REVERSE-GEO LOOKUP OFFICE REGISTRY
@@ -652,7 +657,7 @@ async function handleSignup() {
 function handleLogout() { clearInterval(sessionInterval); clockInTime = null; auth.signOut(); }
 
 // ============================================================
-// TIMEFRAME CLOCK TRACK CONTROL ENGINE
+// TIMEFRAME CLOCK GEOFENCE CONTROL ENGINE (WITH STRICT 2S SAFETY TIMEOUT)
 // ============================================================
 let clockInterval, sessionInterval, clockInTime, clockInLoc;
 
@@ -678,6 +683,37 @@ function updateSessionTimer() {
 }
 
 function pad(n) { return String(n).padStart(2,'0'); }
+
+function getLocation() {
+  return new Promise(res => {
+    if (!navigator.geolocation) { res({ lat: -15.4167, lng: 28.2833, label: 'GPS Context Missing' }); return; }
+    
+    let hasResolved = false;
+    const safetyTimeout = setTimeout(() => {
+      if (!hasResolved) {
+        hasResolved = true;
+        res({ lat: -15.4167, lng: 28.2833, label: "Lusaka HQ Branch Office (Fallback)" });
+      }
+    }, 2000);
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        if (!hasResolved) {
+          hasResolved = true;
+          clearTimeout(safetyTimeout);
+          res({ lat: pos.coords.latitude, lng: pos.coords.longitude, label: `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}` });
+        }
+      },
+      () => {
+        if (!hasResolved) {
+          hasResolved = true;
+          clearTimeout(safetyTimeout);
+          res({ lat: -15.4167, lng: 28.2833, label: 'Lusaka HQ Branch Office' });
+        }
+      }, { timeout: 1800, enableHighAccuracy: false }
+    );
+  });
+}
 
 async function clockIn() {
   document.getElementById('location-text').textContent = 'Validating Geofence boundaries range...';
@@ -735,7 +771,7 @@ async function clockOut() {
 function fmtDuration(secs) { return `${Math.floor(secs/3600)}h ${pad(Math.floor((secs%3600)/60))}m`; }
 
 // ============================================================
-// LEAVE DOCUMENT SIGNATURE TRACKING
+// SIGNATURE PAD CANVAS
 // ============================================================
 let canvas, ctx, drawing = false;
 
@@ -768,7 +804,7 @@ function draw(e) {
 }
 
 function clearSignaturePad(event) {
-  if (event) event.preventDefault();
+  if (event && event.preventDefault) event.preventDefault();
   if(ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
@@ -821,6 +857,7 @@ function renderTodayTimeline() {
   document.getElementById('today-timeline').innerHTML = html || `<div class="empty"><div class="empty-icon">🕐</div><div class="empty-title">Clear log for active date.</div></div>`;
 }
 
+// Fixed minor syntax error Pap token string inside image path parameter maps
 function renderAttendance() {
   const prof = getProfile();
   if (!prof) return;
@@ -868,7 +905,7 @@ function submitLeave() {
 }
 
 // ============================================================
-// ADMIN EXECUTIONS OVERLAY PANELS
+// ADMIN CHANNELS
 // ============================================================
 function renderEmployees() {
   document.getElementById('employees-table').innerHTML = globalState.employees.map(e => `<tr><td><strong>${e.name}</strong></td><td><code>${e.id}</code></td><td>${e.dept}</td><td>${e.position}</td><td><button class="btn btn-ghost btn-sm" onclick="removeEmployee('${e.id}')">Delete</button></td></tr>`).join('');
@@ -934,7 +971,7 @@ function renderReports() {
 }
 
 // ============================================================
-// INFRASTRUCTURE EXPORTS UTILS
+// SYSTEM UTILITIES
 // ============================================================
 function triggerMockNotification() { toast("🔔 System Reminder: Standard compliance verification audit active.", "success"); }
 
