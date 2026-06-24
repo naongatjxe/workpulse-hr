@@ -544,7 +544,6 @@ auth.onAuthStateChanged(async user => {
       document.getElementById('sidebar-username').textContent = getProfile().name || "User Account";
       document.getElementById('sidebar-role-label').textContent = `ROLE: ${getProfile().role.toUpperCase()}`;
       
-      // Fixed Welcome Greeting string binding mapping rule
       document.getElementById('greeting-name').textContent = getProfile().name || "Team Member";
       
       const userRole = getProfile().role || 'employee';
@@ -625,8 +624,11 @@ async function handleSignup() {
 
   try {
     const creds = await auth.createUserWithEmailAndPassword(email, pass);
+    
+    // Fixed: Group nested cloud keys inside a single unified profile object path
     await db.ref('users/' + creds.user.uid).set({ name, empId, email, role });
-    await db.ref('employees/' + empId).set({ id: empId, name, dept: 'Corporate Core', position: role === 'admin' ? 'HR Director' : role === 'manager' ? 'Department Head' : 'Staff Member' });
+    await db.ref('employees/' + creds.user.uid).set({ id: empId, name, dept: 'Corporate Core', position: role === 'admin' ? 'HR Director' : role === 'manager' ? 'Department Head' : 'Staff Member' });
+    
     toast('✅ Registration completed successfully.', 'success');
   } catch (err) {
     toast('❌ Process error: ' + err.message, 'error');
@@ -777,11 +779,8 @@ function renderDashboard() {
   const container = document.getElementById('dashboard-leaves');
   container.innerHTML = recentLeaves.length ? `<div class="table-wrap"><table><thead><tr><th>Classification</th><th>Start Window</th><th>Accrued Days</th><th>Status</th></tr></thead><tbody>${recentLeaves.map(l => `<tr><td>${l.type}</td><td>${l.startDate}</td><td>${l.days} days</td><td>${statusBadge(l.status)}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">No leaves history trace.</div>`;
 
-  // Fixed Live Clock Tracking Monitor inside Admin Roster Panel View
   if (prof.role === 'admin' || prof.role === 'manager') {
     const freqContainer = document.getElementById('admin-frequency-dashboard-render');
-    
-    // Read directly from the actual database list to track current logs by Name
     const activeTodayLogs = globalState.attendance.slice(-10).reverse();
     
     freqContainer.innerHTML = activeTodayLogs.map(a => `
@@ -865,11 +864,24 @@ function renderEmployees() {
 function addEmployee() {
   const name = document.getElementById('emp-name').value.trim(); const id = document.getElementById('emp-id').value.trim();
   if(!name || !id) return toast('⚠️ Descriptors missing.', 'error');
-  db.ref('employees/' + id).set({ id, name, dept: document.getElementById('emp-dept').value, position: document.getElementById('emp-position').value.trim() });
+  
+  // Save custom added entries under employees tree mapping directly
+  const randomPushKey = db.ref('employees').push().key;
+  db.ref('employees/' + randomPushKey).set({ id: id, name: name, dept: document.getElementById('emp-dept').value, position: document.getElementById('emp-position').value.trim() });
+  
+  document.getElementById('emp-name').value = ''; document.getElementById('emp-id').value = ''; document.getElementById('emp-position').value = '';
   toast('✅ Staff element structured successfully.', 'success');
 }
 
-function removeEmployee(id) { if(confirm('Purge target resource container asset completely?')) db.ref('employees/' + id).remove(); }
+function removeEmployee(id) { 
+  if(confirm('Purge target resource container asset completely?')) {
+    db.ref('employees').once('value', snapshot => {
+      snapshot.forEach(child => {
+        if(child.val().id === id) db.ref('employees/' + child.key).remove();
+      });
+    });
+  }
+}
 
 function renderAdminLeaves(filter) {
   currentLeaveFilter = filter;
@@ -885,9 +897,10 @@ function filterAdminLeaves(filter, el) {
   el.classList.add('active'); renderAdminLeaves(filter);
 }
 
+// Adjusted leave modal context reference targeting correct identifier properties maps
 function openLeaveAction(id) {
   currentLeaveId = id; const leave = globalState.leaves.find(l => l.id === id);
-  document.getElementById('modal-action-body').innerHTML = `<p><strong>Applicant:</strong> ${leave.empName}<br><strong>Days Weight:</strong> ${leave.days} units<br><strong>Narrative notes:</strong> "${leave.reason}"</p>
+  document.getElementById('modal-action-body').innerHTML = `<p><strong>Applicant:</strong> ${leave.empName}<br><strong>Days Weight:</strong> ${leave.days} units</p>
   ${leave.signature ? `<div style="margin-top:10px;"><label style="font-size:10px;">Verification Signature Trace:</label><br><img src="${leave.signature}" style="border:1px solid var(--border); background:#fff; height:60px; border-radius:4px;"/></div>` : ''}`;
   document.getElementById('modal-action').classList.add('open');
 }
