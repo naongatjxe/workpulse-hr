@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WorkPulse HR — Enterprise Cloud System</title>
+<!-- Global Firebase Legacy Compat SDK Core Scripts -->
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -304,7 +305,7 @@
           
           <div class="location-display">
             <span class="loc-icon">📍</span>
-            <span id="location-text">Verifying Geofence Matrix Rules...</span>
+            <span id="location-text">Verifying Location Bounds...</span>
           </div>
 
           <div style="margin-bottom: 16px; font-size: 12px; color: var(--muted); display:flex; gap:8px; align-items:center;">
@@ -344,7 +345,7 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Target Date</th><th>Clock-In Stamp</th><th>Inbound GPS</th><th>Clock-Out Stamp</th><th>Outbound GPS</th><th>Duration</th><th>Status</th></tr></thead>
+            <thead><tr><th>Target Date</th><th>Clock-In Stamp</th><th>Inbound Location</th><th>Clock-Out Stamp</th><th>Outbound Location</th><th>Duration</th><th>Status</th></tr></thead>
             <tbody id="att-table-body"></tbody>
           </table>
         </div>
@@ -363,7 +364,7 @@
             <div class="form-group"><label>Critical Priority</label><select id="leave-priority"><option value="Normal">Normal</option><option value="Urgent">Urgent</option></select></div>
             <div class="form-group"><label>Start Date</label><input type="date" id="leave-start" /></div>
             <div class="form-group"><label>End Date</label><input type="date" id="leave-end" /></div>
-            <div class="form-group full"><label>Document Attachment Placeholder Description</label><input type="text" id="leave-attachment" placeholder="e.g. Medical_Certificate.pdf" /></div>
+            <div class="form-group full"><label>Document Attachment Description</label><input type="text" id="leave-attachment" placeholder="e.g. Medical_Certificate.pdf" /></div>
             <div class="form-group full">
               <label>Electronic Draw Signature Pad</label>
               <div class="signature-pad-container"><canvas id="sig-pad"></canvas></div>
@@ -476,7 +477,28 @@
 
 <script>
 // ============================================================
-// FIREBASE CLOUD REALTIME INITIALIZATION CONTEXTS
+// LIVE REVERSE-GEO LOOKUP OFFICE REGISTRY
+// ============================================================
+function translateCoordinatesToPlace(lat, lng) {
+  if (!lat || !lng) return "Office Network Hub";
+  
+  const locationsDatabase = [
+    { name: "Lusaka HQ Branch Office", lat: -15.4167, lng: 28.2833 },
+    { name: "Kitwe Regional Hub", lat: -12.8167, lng: 28.2000 },
+    { name: "Ndola Office Complex", lat: -12.9667, lng: 28.6333 },
+    { name: "Livingstone Base Station", lat: -17.8500, lng: 25.8500 }
+  ];
+
+  const matchedPlace = locationsDatabase.find(loc => {
+    const distanceThreshold = Math.sqrt(Math.pow(lat - loc.lat, 2) + Math.pow(lng - loc.lng, 2));
+    return distanceThreshold < 0.05; 
+  });
+
+  return matchedPlace ? matchedPlace.name : `Remote Space (${lat.toFixed(3)}, ${lng.toFixed(3)})`;
+}
+
+// ============================================================
+// FIREBASE LIVE INTEGRATION
 // ============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyB0EblfnS8aiDXpjIIGWQog0jrqRCooZGI",
@@ -522,6 +544,9 @@ auth.onAuthStateChanged(async user => {
       document.getElementById('sidebar-username').textContent = getProfile().name || "User Account";
       document.getElementById('sidebar-role-label').textContent = `ROLE: ${getProfile().role.toUpperCase()}`;
       
+      // Fixed Welcome Greeting string binding mapping rule
+      document.getElementById('greeting-name').textContent = getProfile().name || "Team Member";
+      
       const userRole = getProfile().role || 'employee';
       document.getElementById('admin-nav').style.display = (userRole === 'admin' || userRole === 'manager') ? 'block' : 'none';
       document.getElementById('frequency-index-card').style.display = (userRole === 'admin' || userRole === 'manager') ? 'block' : 'none';
@@ -541,7 +566,7 @@ auth.onAuthStateChanged(async user => {
 });
 
 // ============================================================
-// SYSTEM ARCHITECTURE GENERICS & NAV ROUTER
+// NAVIGATION HUB
 // ============================================================
 function nav(page) {
   const prof = getProfile();
@@ -563,7 +588,7 @@ function nav(page) {
 }
 
 // ============================================================
-// CLOUD AUTHENTICATION OPERATIONS CONTEXTS
+// AUTH HANDLERS
 // ============================================================
 async function handleLogin() {
   const email = document.getElementById('login-email').value.trim();
@@ -581,7 +606,7 @@ async function handleLogin() {
       name: pData?.name || email.split('@')[0], 
       id: pData?.empId || userCredential.user.uid.substring(0, 7).toUpperCase(),
       role: pData?.role || 'employee',
-      location: loc.label
+      location: translateCoordinatesToPlace(loc.lat, loc.lng)
     });
     toast('⚡ Session authorized safely.', 'success');
   } catch (err) {
@@ -611,7 +636,7 @@ async function handleSignup() {
 function handleLogout() { clearInterval(sessionInterval); clockInTime = null; auth.signOut(); }
 
 // ============================================================
-// TIMEFRAME CLOCK CONTROL ENGINE
+// TIMEFRAME CLOCK GEOFENCE CONTROL ENGINE
 // ============================================================
 let clockInterval, sessionInterval, clockInTime, clockInLoc;
 
@@ -638,16 +663,6 @@ function updateSessionTimer() {
 
 function pad(n) { return String(n).padStart(2,'0'); }
 
-function getLocation() {
-  return new Promise(res => {
-    if (!navigator.geolocation) { res({ lat: 0, lng: 0, label: 'GPS Context Missing' }); return; }
-    navigator.geolocation.getCurrentPosition(
-      pos => res({ lat: pos.coords.latitude, lng: pos.coords.longitude, label: `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}` }),
-      () => res({ lat: -15.4167, lng: 28.2833, label: 'HQ Center Network Anchor' }), { timeout: 3000 }
-    );
-  });
-}
-
 async function clockIn() {
   document.getElementById('location-text').textContent = 'Validating Geofence boundaries range...';
   const loc = await getLocation();
@@ -663,7 +678,8 @@ async function clockIn() {
   }
 
   clockInLoc = loc; clockInTime = Date.now();
-  document.getElementById('location-text').textContent = `Verified Range: ${loc.label}`;
+  const readablePlaceName = translateCoordinatesToPlace(loc.lat, loc.lng);
+  document.getElementById('location-text').textContent = `Verified Range: ${readablePlaceName}`;
   document.getElementById('clock-status').className = 'clock-status in';
   document.getElementById('clock-status').innerHTML = '<div class="dot"></div> Shift State: Authenticated Geofence Verified';
   document.getElementById('btn-clock-in').disabled = true;
@@ -683,8 +699,10 @@ async function clockOut() {
       empId: prof.empId || 'UNKNOWN',
       empName: prof.name || 'Staff User',
       date: new Date().toISOString().split('T')[0],
-      clockIn: new Date(clockInTime).toLocaleTimeString('en-GB'), clockInLoc: clockInLoc?.label || 'Bypassed Area',
-      clockOut: new Date().toLocaleTimeString('en-GB'), clockOutLoc: loc.label,
+      clockIn: new Date(clockInTime).toLocaleTimeString('en-GB'), 
+      clockInLoc: translateCoordinatesToPlace(clockInLoc?.lat, clockInLoc?.lng),
+      clockOut: new Date().toLocaleTimeString('en-GB'), 
+      clockOutLoc: translateCoordinatesToPlace(loc.lat, loc.lng),
       duration: duration
     });
   }
@@ -701,7 +719,7 @@ async function clockOut() {
 function fmtDuration(secs) { return `${Math.floor(secs/3600)}h ${pad(Math.floor((secs%3600)/60))}m`; }
 
 // ============================================================
-// SIGNATURE PAD CANVAS ARCHITECTURE
+// SIGNATURE PAD CANVAS
 // ============================================================
 let canvas, ctx, drawing = false;
 
@@ -759,11 +777,22 @@ function renderDashboard() {
   const container = document.getElementById('dashboard-leaves');
   container.innerHTML = recentLeaves.length ? `<div class="table-wrap"><table><thead><tr><th>Classification</th><th>Start Window</th><th>Accrued Days</th><th>Status</th></tr></thead><tbody>${recentLeaves.map(l => `<tr><td>${l.type}</td><td>${l.startDate}</td><td>${l.days} days</td><td>${statusBadge(l.status)}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">No leaves history trace.</div>`;
 
+  // Fixed Live Clock Tracking Monitor inside Admin Roster Panel View
   if (prof.role === 'admin' || prof.role === 'manager') {
     const freqContainer = document.getElementById('admin-frequency-dashboard-render');
-    const counts = {};
-    globalState.attendance.forEach(a => { counts[a.empName] = (counts[a.empName] || 0) + 1; });
-    freqContainer.innerHTML = Object.entries(counts).map(([name, num]) => `<div class="frequency-item"><div class="frequency-name">${name}</div><div class="frequency-meta"><span>🔢 Tracking counts: <strong>${num} events</strong></span></div></div>`).join('');
+    
+    // Read directly from the actual database list to track current logs by Name
+    const activeTodayLogs = globalState.attendance.slice(-10).reverse();
+    
+    freqContainer.innerHTML = activeTodayLogs.map(a => `
+      <div class="frequency-item">
+        <div class="frequency-name">👤 Staff Name: ${a.empName}</div>
+        <div class="frequency-meta">
+          <span>🕒 Shift Frame: <strong>${a.clockIn} ➔ ${a.clockOut || 'Active Session'}</strong></span>
+          <span>🏢 Branch: <strong>${a.clockInLoc}</strong></span>
+        </div>
+      </div>
+    `).join('') || `<div class="empty" style="padding:12px;">No workforce sync activity logged today yet.</div>`;
   }
 }
 
@@ -774,7 +803,7 @@ function renderTodayTimeline() {
   const entries = globalState.attendance.filter(a => a.empId === prof.empId && a.date === today);
   document.getElementById('today-count').textContent = `${entries.length} items logged`;
   
-  let html = entries.map(a => `<div class="tl-item"><div class="tl-dot"></div><div class="tl-content"><div class="tl-title">Registered Clock Trace — ${a.clockIn} ➔ ${a.clockOut || 'Active'}</div><div class="tl-meta">Coordinates Vector: 📍 ${a.clockInLoc}</div></div></div>`).join('');
+  let html = entries.map(a => `<div class="tl-item"><div class="tl-dot"></div><div class="tl-content"><div class="tl-title">Registered Clock Trace — ${a.clockIn} ➔ ${a.clockOut || 'Active'}</div><div class="tl-meta">Location Base: 🏢 ${a.clockInLoc}</div></div></div>`).join('');
   if (clockInTime) html += `<div class="tl-item"><div class="tl-dot" style="background:var(--amber);animation:pulse 1.4s infinite"></div><div class="tl-content"><div class="tl-title" style="color:var(--amber)">Shift Framework Connection Connected</div></div></div>`;
   document.getElementById('today-timeline').innerHTML = html || `<div class="empty"><div class="empty-icon">🕐</div><div class="empty-title">Clear log for active date.</div></div>`;
 }
@@ -788,7 +817,7 @@ function renderAttendance() {
 
   document.getElementById('att-summary').textContent = `${filtered.length} logs entries synced.`;
   document.getElementById('att-table-body').innerHTML = filtered.map(a => `
-    <tr><td><strong>${a.date}</strong><br><small style="color:var(--accent)">${a.empName}</small></td><td style="color:var(--green); font-weight:600">${a.clockIn}</td><td>${a.clockInLoc}</td><td style="color:var(--red); font-weight:600">${a.clockOut||'—'}</td><td>${a.clockOutLoc||'—'}</td><td style="font-weight:600">${a.duration?fmtDuration(a.duration):'—'}</td><td><span class="badge badge-green">Synced</span></td></tr>
+    <tr><td><strong>${a.date}</strong><br><small style="color:var(--accent)">${a.empName}</small></td><td style="color:var(--green); font-weight:600">${a.clockIn}</td><td>🏢 ${a.clockInLoc}</td><td style="color:var(--red); font-weight:600">${a.clockOut||'—'}</td><td>🏢 ${a.clockOutLoc||'—'}</td><td style="font-weight:600">${a.duration?fmtDuration(a.duration):'—'}</td><td><span class="badge badge-green">Synced</span></td></tr>
   `).join('') || `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Zero tracking items inside datastore.</td></tr>`;
 }
 
@@ -826,11 +855,11 @@ function submitLeave() {
 }
 
 // ============================================================
-// EXECUTIVE PORTALS ADMIN INTERACTIVE CHANNELS
+// ADMIN CHANNELS
 // ============================================================
 function renderEmployees() {
   document.getElementById('employees-table').innerHTML = globalState.employees.map(e => `<tr><td><strong>${e.name}</strong></td><td><code>${e.id}</code></td><td>${e.dept}</td><td>${e.position}</td><td><button class="btn btn-ghost btn-sm" onclick="removeEmployee('${e.id}')">Delete</button></td></tr>`).join('');
-  document.getElementById('admin-logins-table').innerHTML = globalState.logins.slice(-6).reverse().map(l => `<tr><td>${l.timestamp}</td><td><strong>${l.name}</strong></td><td>${l.id}</td><td><span class="badge badge-purple">${l.role ? l.role.toUpperCase() : 'USER'}</span></td><td>📍 GPS Trace: ${l.location}</td></tr>`).join('');
+  document.getElementById('admin-logins-table').innerHTML = globalState.logins.slice(-6).reverse().map(l => `<tr><td>${l.timestamp}</td><td><strong>${l.name}</strong></td><td>${l.id}</td><td><span class="badge badge-purple">${l.role ? l.role.toUpperCase() : 'USER'}</span></td><td>🏢 Registered Branch: <span style="color:var(--text);font-weight:600;">${l.location}</span></td></tr>`).join('');
 }
 
 function addEmployee() {
@@ -880,7 +909,7 @@ function renderReports() {
 }
 
 // ============================================================
-// SYSTEM PRODUCTION UTILITIES (CSV PAYROLL & MOCK REMINDERS)
+// SYSTEM UTILITIES
 // ============================================================
 function triggerMockNotification() { toast("🔔 System Reminder: Standard compliance verification audit active.", "success"); }
 
